@@ -1,0 +1,129 @@
+---
+title: "Practica1"
+author: "Sebastian Cueva, Pol Gracia"
+date: "20/11/2022"
+output: html_document
+---
+
+# 0. Imports
+
+
+#### Importar librerias
+
+```{r}
+library(dplyr)
+
+```
+
+#### Importar datos
+
+```{r}
+train <- read.csv("./data/train.csv", stringsAsFactors=TRUE)
+
+p1_train <- read.csv("./data/p1_train.csv", sep=";", stringsAsFactors=TRUE)
+
+p1_test <- read.csv("./data/p1_test.csv", sep=";", stringsAsFactors=TRUE)
+```
+
+
+
+# 1. Exploratory Data Analysis
+
+En este apartado se va hacer el análisi exploratorio de los datos.
+
+```{r}
+
+```
+
+
+## Separar entre target y datos y hacer:
+
+### Para los datos : 
+
+#### 000. Nans
+
+Cuantos nans, que hacer con ellos
+
+```{r}
+
+```
+
+
+#### 00. Duplicados
+
+```{r}
+
+```
+
+#### 0. Analisis lógico: variable categorica o continua, max mins, boxplots...
+
+```{r}
+
+```
+
+#### 1. Hacer boxplots de los campos y mirar outliers en los datos
+
+```{r}
+
+```
+
+#### 2. matriz de correlaciones con la variable target
+
+```{r}
+
+```
+
+#### 3. PCA 
+```{r}
+
+```
+
+
+### Para el target : 
+
+#### 0. Analisis lógico: variable categorica o continua, max mins, boxplots...
+```{r}
+
+```
+
+
+#### 1. Hacer barplot(o otro) para mirar la distribución de los targets (son balanceados)
+
+```{r}
+
+```
+
+
+#### 2. Encontrar relaciones lògicas con las variables de datos y hacer plots (alquier por dias que llueve, alquiler por estaciones, alquiler por festivo o laborable...) - hacer 4 o 5 plots de relaciones para tener contento a Jordi :) (mirar ggplot2) - libreria plots
+
+```{r}
+
+```
+
+## 2. MODELO
+
+#### 1. Normalización y preparación de los datos
+
+```{r}
+
+```
+
+#### 2. Seleccion modelo
+```{r}
+
+```
+
+#### 3. Entrenamiento
+```{r}
+
+```
+
+#### 4. Validación
+```{r}
+
+```
+
+
+## 3. Conclusiones
+
+
