@@ -1,0 +1,117 @@
+---
+title: "Practica2"
+author: "Sebastian Cueva, Pol Gracia"
+date: "11/12/2022"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+# 0. Imports
+
+#### Importar librerias
+
+```{r}
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(stringr)
+library(reshape)
+library(minerva)
+library(heatmaply)
+library(kableExtra)
+library(factoextra)
+library(ggbiplot)
+library(randomForest)
+library(ROCR)
+
+```
+
+#### Importar datos
+
+Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p2_train. El p2_test se usara únicamente para validar los resultados al final de todo de la practica.
+
+```{r}
+p2_train <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
+
+p2_test <- read.csv("./data/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
+```
+
+
+# 1. Exploratory Data Analysis
+
+En este apartado se va hacer el análisi exploratorio de los datos.
+
+
+```{r}
+head(p2_train)
+```
+
+Eliminamos la variable id del dataset ya que es el indice, y no aporta información.
+
+```{r}
+p2_train <- p2_train %>% select(-id)
+```
+
+### Para los datos : 
+
+#### 000. Nans handling
+
+Se puede apreciar que no encontramos ningún nan en las columnas del dataset, haciendo que no tengamos que tratar con ellos.
+
+```{r}
+p2_train %>% group_by() %>% summarise_all(funs(sum(is.na(.))))
+```
+
+#### 00. Duplicates handling
+
+Se eliminan las filas duplicadas del dataset.
+
+```{r}
+p2_train <- p2_train %>%
+                distinct()
+p2_train
+```
+
+summary de todo para visualizar los datos
+
+
+```{r}
+summary(p2_train) 
+```
+
+Se elimina la variable pdays debido a que no a porta informacion
+
+```{r}
+p2_train <- p2_train %>% select(-pdays)
+```
+
+Se visualiza si los datos estan estructurados por factores
+```{r}
+str(p2_train)
+
+sapply(p2_train, class) 
+```
+se visualiza las columnas que son factor 
+
+```{r}
+ which(sapply(p2_train, is.factor))
+```
+
+
+Se crea un vector con las columnas que son factoriales 
+
+```{r}
+v.factorial=c(2,3,4,5,6,7,8,9,10,13)
+```
+
+
+#install.packages('vcd')
+
+mosaic( ~ job + y, data = p2_train, highlighting = "job", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
+
+
+reducir a 2 categorias white collar y blue collar
+
