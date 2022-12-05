@@ -113,5 +113,121 @@ v.factorial=c(2,3,4,5,6,7,8,9,10,13)
 mosaic( ~ job + y, data = p2_train, highlighting = "job", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
 
 
-reducir a 2 categorias white collar y blue collar
+
+  
+  ver cuanto hay en cada categoria de job
+  table(p2_train$job)
+  
+ Para reducir las categorias y crear nuevas columnas vamos a clonar el dateframe con nombre prediction
+ 
+```{r}
+predictors <- p2_train
+```
+ quitar los unknown de la data predictors de la columna job
+ 
+```{r}
+
+predictors <- predictors[!(predictors$job == 'unknown'),]
+```
+ 
+Se recategoriza en reducir a 2 categorias 
+
+trabaja = admin + technician + self-employe + management + services + entrepreneur + blue-collar + housemaid
+no-trabaja = student +  retired + unemployed
+
+
+```{r}
+predictors$job2  <- ifelse((predictors$job == 'student')|(predictors$job == 'retired')|(predictors$job == 'unemployed'),'no-work','work')
+
+```
+
+visual;izar month tiene muchas categorias
+```{r}
+ table(predictors$month2 )
+```
+
+
+Se recategoriza en reducir a 2 el mes
+1-semestre = mar + apr + may + jun + jul  
+2-semestre = aug + sep + oct + nov + dec  
+
+
+
+```{r}
+predictors$month2  <- ifelse((predictors$month == 'mar')|(predictors$month == 'apr')|(predictors$month == 'may')|(predictors$month == 'jun')|(predictors$month == 'jul'),'1-semestre','2-semestre')
+```
+
+
+
+
+```{r}
+mosaic( ~ job2 + month2  + y, data = predictors, highlighting = "job2", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
+```
+#### 1. Hacer boxplots de los campos y mirar outliers en los datos
+
+descriptiva de los valores numericos
+
+
+```{r}
+meltPred <- predictors %>% select(where(is.numeric)) %>% melt()
+meltPred %>%
+ ggplot(aes(factor(variable), value)) +
+   geom_violin(width=1, color = "gray", alpha = 0.2, fill = 'green' ) +
+    geom_boxplot(width=0.3, color="black", fill='blue', alpha=0.3, outlier.colour="red", outlier.shape=8,
+             outlier.size=1, notch=TRUE) + facet_wrap(~variable, scale="free")
+```
+
+#### 3. PCA 
+
+```{r}
+pca <- predictors %>% select(where(is.numeric)) %>% sample_n(200) %>%
+  prcomp(scale. = TRUE, center = TRUE)
+summary(pca)
+```
+
+
+```{r}
+pca %>% 
+  ggbiplot::ggbiplot(scale = 1)
+```
+
+
+### Para el target : 
+
+#### 0. Analisis lógico: variable categorica o continua, max mins, boxplots...
+
+
+La variable target 'count' es una variable categorica que representa el numero de bicicletas alquiladas en las grandes ciudades. La variable tiene una media de 190 y un std de 182, un valor bastante elevado que indica mucha variación en la variable.
+```{r}
+corrs$Pearson
+```
+
+#### 1. Hacer barplot(o otro) para mirar la distribución de los targets (son balanceados)
+
+Partiendo de la base que la variable target es continua, podemos apreciar que la frequencia de la misma sigue una distribución parecida a la exponencial, ya que cómo más se aleja del número 0 menos frequencia encontramos.
+Habrá que tener en cuenta entonces, que el modelo va a tender a predecir valores bajos en la mayoria de los casos.
+
+```{r}
+p2_train %>%
+ggplot( aes(x=count)) + 
+ geom_histogram(aes(y=..density..), colour="black", fill="white", binwidth = 20)+
+ geom_density(alpha=.2, fill="#FF6666") + theme_classic()
+```
+
+## 2. MODELO
+
+#### 1. Normalización y preparación de los datos
+
+```{r}
+
+p2_train %>% mutate(across(where(is.numeric), scale))
+```
+
+
+# glm
+
+```{r}
+mod_glm <- glm(age~., p2_train, family = poisson())
+mean(mod_glm$residuals^2)
+```
 
