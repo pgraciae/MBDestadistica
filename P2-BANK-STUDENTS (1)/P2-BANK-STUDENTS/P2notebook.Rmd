@@ -26,6 +26,7 @@ library(factoextra)
 library(ggbiplot)
 library(randomForest)
 library(ROCR)
+library('vcd')
 
 ```
 
@@ -107,7 +108,7 @@ Se crea un vector con las columnas que son factoriales
 v.factorial=c(2,3,4,5,6,7,8,9,10,13)
 ```
 
-
+caret
 #install.packages('vcd')
 
 mosaic( ~ job + y, data = p2_train, highlighting = "job", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
@@ -163,6 +164,45 @@ predictors$month2  <- ifelse((predictors$month == 'mar')|(predictors$month == 'a
 ```{r}
 mosaic( ~ job2 + month2  + y, data = predictors, highlighting = "job2", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
 ```
+
+
+############################################################
+# Descriptiva bivariante
+############################################################
+##-- Variables categoricas
+sapply(datos,class)
+var.cat <- which(sapply(datos,class)=="factor" & names(datos)!="y")  # variables que son categoricas (factores)
+##--Mosaicplot para las categoricas
+for(vc in var.cat)  mosaicplot(datos[,vc]~datos$y,main=names(datos)[vc],col=2:3,las=1)
+
+
+##--Densidad para las variables numericas
+var.num <- which(sapply(datos,class) %in% c("numeric","integer"))    # variables que son numericas
+for(vn in var.num) cdplot(datos$y~datos[,vn],main=names(datos)[vn],n=512)
+
+
+
+
+```{r}
+sapply(p2_train,class)
+var.cat <- which(sapply(p2_train,class)=="factor" & names(p2_train)!="y")  # variables que son categoricas (factores)
+##--Mosaicplot para las categoricas
+for(vc in var.cat)  mosaicplot(p2_train[,vc]~p2_train$y,main=names(p2_train)[vc],col=2:3,las=1)
+```
+##--Densidad para las variables numericas
+
+  # variables que son numericas
+```{r}
+
+var.num <- which(sapply(p2_train,class) %in% c("numeric","integer"))  
+for(vn in var.num) cdplot(p2_train$y~p2_train[,vn],main=names(p2_train)[vn],n=512)
+```
+
+
+
+
+
+
 #### 1. Hacer boxplots de los campos y mirar outliers en los datos
 
 descriptiva de los valores numericos
@@ -227,7 +267,98 @@ p2_train %>% mutate(across(where(is.numeric), scale))
 # glm
 
 ```{r}
-mod_glm <- glm(age~., p2_train, family = poisson())
+mod_glm <- glm(y~., p2_train, family = binomial())
 mean(mod_glm$residuals^2)
 ```
+mod.glm0 <- glm(y~.,datos,family=binomial)    # estimacion del modelo
+summary(mod.glm0)   
+```{r}
+mod.glm0 <- glm(y~.,p2_train,family=binomial)    # estimacion del modelo
+summary(mod.glm0)  
+```
+```{r}
+mod.glm1 <- step(mod.glm0)
+summary(mod.glm1)
+```
+
+
+```{r}
+library(caret)
+View(varImp(mod.glm1))
+```
+```{r}
+library(ResourceSelection)
+hoslem.test(mod.glm1$y, fitted(mod.glm1))
+
+```
+
+############################################################
+# Estimacion de un Odds Ratio
+############################################################
+##-- Variable categorica
+
+```{r}
+
+exp(mod.glm1$coef["contact"])    # Los extranjeros tienen un oddsratio de 0.17 respecto a los no extranjeros. Es decir, las probabilidades de pagar son un 0.17 la de los nacionales 
+
+##-- Variable numerica
+exp(mod.glm1$coef["age"])           # Por cada anyo de mas de la persona se incrementa en un 2% (aprox) la probabilidad de que acabe pagando
+
+##--Intervalos de confianza
+IC <- confint(mod.glm1)             # Intervalos de  confianza para los coeficientes
+round(exp(IC),2)  
+```
+############################################################
+# Estimacion de la probabilidad de pago
+############################################################
+##-- Probabilidades predichas
+
+```{r}
+pr <- predict(mod.glm1,p2_train,type="response")
+pr
+
+##--Probabilidad maxima y minima
+pos.max <- which.max(pr)        # posicion del individuo con mayor probabilidad de pagar
+pr[pos.max]                     # probabilidad de dicho individuo 
+p2_train$y[pos.max]                # pago?
+
+pos.min <- which.min(pr)        # posicion del individuo con menor probabilidad de pagar
+pr[pos.min]                     # probabilidad de dicho individuo 
+p2_train$y[pos.min]                # pago?
+
+boxplot(pr~y,p2_train)
+```
+
+
+
+############################################################
+# Curva ROC y AUC
+############################################################
+##-- Instalar libreria AUC
+# install.packages('AUC')
+```{r}
+library(AUC)
+
+##-- Curva ROC y AUC
+pr <- predict(mod.glm1,type='response')
+roc.curve <- roc(pr,p2_train$y)
+plot(roc.curve)
+AUC::auc(roc.curve)
+```
+
+
+
+
+
+luzy
+
+
+Sale que 'basic.9y' y 'university.degree' son los  que tienen mas * pero no se que es la relacion "Junta las dos categorias con mas similitud en efecto y semantica y el rest"
+
+```{r}
+mod.glm0 <- glm(p2_train$y~.,p2_train$education,family=binomial)    # estimacion del modelo
+summary(mod.glm0) 
+```
+
+
 
