@@ -37,7 +37,7 @@ Aunque se nos entrega el fichero de train entero y podriamos obtener la variable
 ```{r}
 p2_train <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
 
-p2_test <- read.csv("./data/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
+p2_test <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
 ```
 
 
@@ -347,18 +347,102 @@ AUC::auc(roc.curve)
 ```
 
 
+############################################################
+#
+# Parte 2. Testear resultados
+#
+############################################################
+test <- read.table('bank0_test.txt',header=TRUE,sep=';', stringsAsFactors = TRUE)
 
-
-
-luzy
-
-
-Sale que 'basic.9y' y 'university.degree' son los  que tienen mas * pero no se que es la relacion "Junta las dos categorias con mas similitud en efecto y semantica y el rest"
+############################################################
+# Calcular predicciones y compararlas con valores reales
+############################################################
 
 ```{r}
-mod.glm0 <- glm(p2_train$y~.,p2_train$education,family=binomial)    # estimacion del modelo
-summary(mod.glm0) 
+pr <- predict(mod.glm1,p2_test)   # probabilidades predichas
+boxplot(pr~p2_test$y)             # Como son estas probabilidades en ambos grupos de respuesta
+roc.curve <- roc(pr,p2_test$y)    # Calculo de la curva ROC
+plot(roc.curve)                # Dibujo de la curva ROC
+AUC::auc(roc.curve)                 # AUC de la curva ROC
+
+
+
+```
+```{r}
+##-- Sensibilidad y especificidad para un punto de corte concreto
+s <- AUC::sensitivity(pr,p2_test$y)
+e <- AUC::specificity(pr,p2_test$y)
+a <- AUC::accuracy(pr,p2_test$y)
+df <- data.frame(cutpoints=s$cutoffs,sens=s$measure,esp=e$measure,acc=a$measure)
+View(round(df,3))
+
+
 ```
 
 
+
+
+```{r}
+##-- Escoger un punto de corte --> Matriz de confusion
+p2_test$doy.credito <- ifelse(pr>0.5,'si','no')  # Doy credito a aquellos con un probabilidad predicha de pagar superior a 0.5
+with(p2_test,table(doy.credito,y))
+with(p2_test,round(100*prop.table(table(doy.credito,y),1),1))
+```
+
+
+
+
+Modelo Random Forest
+
+
+```{r}
+library(randomForest)
+library(datasets)
+library(caret)
+```
+
+
+```{r}
+str(p2_train)
+```
+
+```{r}
+rf <- randomForest(
+  y ~ .,
+  data=p2_train
+)
+
+set.seed(71)
+rf <-randomForest(y~.,data=p2_train, ntree=500) 
+```
+
+
+https://bookdown.org/content/2031/ensambladores-random-forest-parte-ii.html
+
+https://towardsdatascience.com/random-forest-in-r-f66adf80ec9
+
+
+```{r}
+set.seed(1234)
+rf <- randomForest(y~., data = p2_train, mtry = 10, importance = TRUE, ntree = 500 )
+rf
+```
+
+
+```{r}
+importance(rf)
+varImpPlot(rf)
+```
+Model performance (mse)
+```{r}
+mseDF <- data.frame(pred = rf$predicted, gt = rf$y)
+mean((mseDF$pred-mseDF$gt)^2) #mse
+```
+mse bastante correcto
+
+```{r}
+mseDF
+
+
+```
 
