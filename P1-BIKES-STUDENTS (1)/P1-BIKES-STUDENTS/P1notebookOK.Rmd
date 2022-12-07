@@ -1,0 +1,414 @@
+---
+title: "MBD Estadística - Practica 1"
+author: "Sebastian Cueva, Pol Gracia"
+date: "20/11/2022"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+A continuación se expone el código y comentarios resultados de la realización de la práctica 1.
+
+# 0. Imports
+
+#### Importar librerias
+
+```{r warning=FALSE}
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(knitr)
+library(ggplot2)
+library(stringr)
+library(reshape)
+library(minerva)
+library(heatmaply)
+library(kableExtra)
+library(factoextra)
+library(ggbiplot)
+library(randomForest)
+library(ROCR)
+library(ggcorrplot)
+library(ModelMetrics)
+```
+
+#### Importar datos
+
+Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p1_train. El p1_test se usara únicamente para validar los resultados al final de todo de la practica.
+
+```{r}
+train <- read.csv("./data/train.csv", head = TRUE, stringsAsFactors=TRUE)
+
+p1_train <- read.csv("./data/p1_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
+
+p1_test <- read.csv("./data/p1_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
+```
+
+
+
+# 1. Preprocesado de los datos
+
+En este apartado se va hacer el análisi exploratorio de los datos.
+
+```{r}
+head(p1_train)
+```
+Eliminamos la variable id del dataset ya que es el indice, y no aporta información.
+
+```{r}
+p1_train <- p1_train %>% select(-id)
+```
+
+Summary de los datos
+```{r}
+summary(p1_train)
+```
+
+
+#### 1.0 Nan handling
+
+Se puede apreciar que no encontramos ningún nan en las columnas del dataset, haciendo que no tengamos que tratar con ellos.
+
+```{r}
+p1_train %>% group_by() %>% summarise_all(funs(sum(is.na(.))))
+```
+
+
+#### 1.1 Duplicates handling
+
+Se eliminan las filas duplicadas del dataset.
+
+```{r}
+p1_train <- p1_train %>%
+                distinct()
+p1_train
+```
+
+#### 1.2. Separar datos entre numericos y categoricos
+
+Para las variables que son categoricas, aunque su representación sea numerica debemos tratarlas cómo categoricas a nivel dato para obtener el resultado deseado.
+
+Las variables categoricas del dataset segun el enunciado son: workingday, holiday, weather y season.
+
+```{r}
+p1_train <- p1_train %>% mutate(workingday = as.factor(workingday),
+                                   holiday = as.factor(holiday),
+                                   weather = as.factor(weather),
+                                   season = as.factor(season))
+```
+
+## 2. Exploratory Data Analysis
+
+
+Eliminamos la variable target del dataset para hacer un estudio de las columnas predictivas. Posteriormente se hará el estudio de la variable target independientemente.
+
+```{r}
+predictors <- p1_train %>% select(-count)
+```
+
+
+#### 2.0. Hacer boxplots de los campos y mirar outliers en los datos
+
+(Sobre variables numericas)
+```{r warning=FALSE}
+meltPred <- predictors %>% select(where(is.numeric)) %>% melt()
+meltPred %>%
+ ggplot(aes(factor(variable), value)) +
+   geom_violin(width=1, color = "gray", alpha = 0.2, fill = 'green' ) +
+    geom_boxplot(width=0.3, color="black", fill='blue', alpha=0.3, outlier.colour="red", outlier.shape=8,
+             outlier.size=1, notch=TRUE) + facet_wrap(~variable, scale="free")
+```
+Estos gráficos representan un boxplot y un violinplot sobre todas las variables numericas del dataset. Podemos apreciar:
+
+- La columna year contiene únicamente dos valores 2011 y 2012.
+
+- La columna hour se ditribuye entre el 0 y el 24, con una media situada en los 12. No encontramos outliers.
+
+- La columna temp y la columna atemp siguen distribuciones muy similares, la media esta alrededor del 25. No encontramos outliers.
+
+- La columna humidity se distribuye entre el 0 y el 100 con una media alrededor de los 60. No encontramos otuliers.
+
+- La columna windspeed se distribuye entre el 0 y el 60 con una media alrededor de los 15. Encontramos numersos outliers cuando el valores es mayor de 30.
+
+
+#### 2.1 Matriz de correlaciones de pearson de las variables numericas
+```{r}
+corrp <- p1_train %>% select(where(is.numeric)) %>%  cor(method = 'pearson')
+corrp %>% ggcorrplot(hc.order = TRUE, type = 'lower', lab=TRUE,
+                      outline.col = "white",
+                       ggtheme = ggplot2::theme_gray,
+                       colors = c("#6D9EC1", "white", "#E46726")
+                      )
+
+```
+Se puede apreciar cómo la variable atemp y temp estan muy correlacionadas, de ambas, seleccionaremos solamente la columna temp y eliminaremos la columna atemp para una mejora en la prediccion.
+Con la variable target count, estan directamente relacionadas las columnas temp, year, hour y windspeed y la columna humidity esta indirectamente realcionada.
+
+
+Eliminamos la columna atemp del dataset.
+```{r}
+p1_train <- p1_train %>% select(-atemp)
+p1_test <- p1_test %>% select(-atemp)
+predictors <- predictors %>% select(-atemp)
+```
+
+#### 2.2 matriz de correlaciones lineales y no lineales con la variable target
+
+Calculamos la correlación no lineal MIC de las columnas con la variable target.
+```{r}
+numpred <- predictors %>% select(where(is.numeric)) 
+corrs <- data.frame(MIC = mine(numpred, y = p1_train$count, alpha = 0.7)) %>% select(MIC.Y)
+corrs$Pearson <- cor(numpred, y = p1_train$count, method = 'pearson')
+rownames(corrs) <- rownames(corrs$Pearson)
+corrs
+```
+Podremos apreciar que las correlaciones no lineadas calculadas son (en proporcion) similares a las correlaciones de Pearson.
+
+
+```{r}
+cbind(corrs$MIC.Y, corrs$MIC.Y ) %>% heatmaply_cor(xlab = "",
+              ylab = "Columnas", main = "Correlacion MIC de las columnas numericas con la variable target 'count'", cellnote = cbind(corrs$MIC.Y, corrs$MIC.Y ), k_col = 1, k_row = 1)
+
+```
+El gràfico superior tiene 2 columnas pero se debe considerar una sola (estan repetidas), ha sido la unica manera que hemos encontrado de hacer el gráfico del MIC.
+
+
+#### 2.3 PCA 
+
+Realizamos un PCA sobre los datos para extraer los componentes principales y estudiarlos.
+
+```{r}
+pca <- predictors %>% select(where(is.numeric)) %>% sample_n(200) %>%
+  prcomp(scale. = TRUE, center = TRUE) #Se debe hacer un sample para posteriormente poder apreciar graficamente la distribución PCA.
+summary(pca)
+```
+
+```{r}
+pca %>% 
+  ggbiplot::ggbiplot(scale = 1)
+```
+
+Gràfico que representa la ponderación de las variables utilizadas para el PCA.
+
+
+## 3. Analisis exploratorio de la variable target 'count' 
+
+
+La variable target 'count' es una variable numerica que representa el numero de bicicletas alquiladas en las grandes ciudades. La variable tiene una media de 190 y un std de 182, un valor bastante elevado que indica mucha variación en la variable.
+
+```{r}
+corrs$Pearson
+```
+Correlaciones de pearson de las columnas predictivas con la variable 'count'.
+
+```{r}
+mean(p1_train$count)
+sd(p1_train$count)
+```
+
+#### 3.1 Distribución
+
+El grafico siguiente es un boxplot y un violin plot sobre la variable target 'count'. Por el violin plot podemos ver que la mayoria de valores se encuentran cercanos al 0 pero por el boxplot vemos que los valores altos del dataset hacen que la media suba considerablemente. En el boxplot podemos apreciar también diversos outliers que sobresalen a partir del valor 550.
+
+```{r warning=FALSE}
+p1_train %>%
+  ggplot( aes(x=count, y=count)) +
+    geom_violin(width=1, color = "gray", alpha = 0.2, fill = 'green' ) +
+    geom_boxplot(width=0.3, color="black", fill='blue', alpha=0.3, outlier.colour="red", outlier.shape=8,
+             outlier.size=1, notch=TRUE) +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=11)
+    ) +
+    ggtitle("Violin y box plot de los valores de la variable target ") +
+    xlab("") + theme_classic() 
+
+```
+
+
+#### 3.2 Histograma y densidad
+
+Partiendo de la base que la variable target es continua, podemos apreciar que la frequencia de la misma sigue una distribución parecida a la exponencial, ya que cómo más se aleja del número 0 menos frequencia encontramos.
+Habrá que tener en cuenta entonces, que el modelo va a tender a predecir valores bajos en la mayoria de los casos.
+
+```{r}
+p1_train %>%
+ggplot( aes(x=count)) + 
+ geom_histogram(aes(y=..density..), colour="black", fill="white", binwidth = 20)+
+ geom_density(alpha=.2, fill="#FF6666") + theme_classic()
+
+```
+
+
+## 4. Prediccion
+
+#### 4.1 Normalización y preparación de los datos
+
+Hacemos un escalado sobre los datos para normalizar. 
+
+```{r}
+p1_train <- p1_train %>% mutate(across(where(is.numeric), scale))
+```
+
+#### 4.2 Linear model
+
+Entrenamos un modelo lineal
+```{r}
+mod_lm <- lm(count~., p1_train) 
+```
+
+Calculamos el mse sobre el train
+```{r}
+mean(mod_lm$residuals^2) #mse
+```
+Calculamos el msle sobre el train
+```{r}
+mean(log(mod_lm$residuals^2)) #mse
+```
+
+Se puede apreciar que el mse y msle es muy grande, el modelo no funciona bien.
+
+```{r warning=FALSE}
+plot(p1_train$count)
+abline(mod_lm)
+```
+
+Se puede ver cómo un modelo lineal es demasiado sencillo para entender la complejidad de los datos y senzillamente predice la media del resultado. 
+
+Podremos coger el error 20000 (que representa el mse entre la media y cada valor) para poder decidir en los modelos posteriores si estan aprendiendo.
+
+#### 4.3 glm
+
+```{r}
+mod_glm <- glm(count~., p1_train, family = poisson())
+mean(mod_glm$residuals^2)
+```
+
+Se ha intentado analizar la predicción pero no se encuentra sentido en la misma. El mse de 0.79 parece demasiado bajo para ser correcto y el predict sobre el train da valores count lejanos al ground truth.
+
+
+#### 4.4 Random forest
+
+```{r}
+set.seed(1234) #definimos una random seed para obtener los mismos resultados consistentemente
+```
+
+Definimos el modelo. Durante la realización de la práctica se ha hecho un grid search y se definen los parametros que devuelven mejor resultado.
+
+```{r warning=FALSE}
+rf <- randomForest(count~., data = p1_train, mtry = 10, importance = TRUE, ntree = 50 )
+rf
+```
+
+Visualizamos que predictores son más importantes.
+```{r}
+importance(rf)
+varImpPlot(rf)
+```
+Podemos apreciar cómo la variable 'hour' es con diferencia la que mejor ayuda a predecir el numero de bicicletas alquiladas.
+
+
+Analisis del model performance (mse) sobre el conjunto de train
+
+```{r}
+mseDF <- data.frame(pred = rf$predicted, gt = rf$y)
+mseDF
+```
+Podemos ver las diferencias entre el count predecido y el ground truth.
+
+```{r}
+mean((mseDF$pred-mseDF$gt)^2) #mse
+```
+Calculamos RMSLE (error cuadratico medio logaritmico)
+```{r}
+rmsle(mseDF$gt,mseDF$pred)
+```
+
+Obtenemos un mse y rmsle coherentes, el modelo funciona.
+
+###### 4.4.1 Random Forest 2
+
+Volvemos a hacer random forest con variables más correlacionadas con la columna a predecir.
+
+```{r}
+p1_trainImp <- p1_train %>% select('hour','year','workingday','season','humidity', 'count')
+```
+
+Entrenamos random forest
+
+```{r warning=FALSE}
+rf2 <- randomForest(count~., data = p1_trainImp, mtry = 10, importance = TRUE, ntree = 50 )
+rf2
+```
+
+Comparación predicted vs ground truth.
+```{r}
+mseDF2 <- data.frame(pred = rf2$predicted, gt = rf2$y)
+mseDF2
+```
+
+Calculamos error
+```{r}
+mean((mseDF2$pred-mseDF2$gt)^2) #mse
+```
+Fucniona peor cogiendo solo las variables más importantes (mse 4122 > mse 2234). Nos quedaremos con la variable 'RF
+
+## 5. Test
+Realizaremos una predicción sobre el dataset de test con el mejor modelo, en nuestro caso el RF.
+
+#### 5.1 Realizar las mismas transformaciones en el test que en el train
+```{r}
+p1_test <- p1_test %>% mutate(workingday = as.factor(workingday),
+                                   holiday = as.factor(holiday),
+                                   weather = as.factor(weather),
+                                   season = as.factor(season)) %>% mutate(across(where(is.numeric), scale))
+```
+
+#### 5.2 Realizar la prediccion
+Se realiza la prediccion sobre los datos de test con el modelo RandomForest.
+
+```{r}
+predsFin <- predict(rf, p1_test)
+predsFinDF <- data.frame(prediction_test = predsFin)
+predsFinDF
+```
+
+
+## 3. Conclusiones
+
+El algoritmo de regresion random forest es el que mejor predice el numero de bicicletas que se alquilaran un dia, con un mse de 2000 sobre el conjunto de train. Podemos ver analizando los resultados que el modelo no tiene mucho overfitting y generaliza bien, esto es asi en parte al haber creado un arbol no demasiado grande, evitando así la caída de valores en hojas. 
+
+Teniendo en cuenta que el mse entre la media y todos los valores del dataset era de 20.000 y con el mejor modelo hemos obtenido un mse de 2000, podemos concluir que nuestro modelo ha aprendido satisfactoriamente.
+
+El rmsle definitivo es 0.3695941.
+
+Cómo algoritmos de regresion se podrian intentar también el xgboost o el catboost pero perderiamos entendimiento de lo que esta haciendo el modelo, asi que se ha obviado para este trabajo.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
