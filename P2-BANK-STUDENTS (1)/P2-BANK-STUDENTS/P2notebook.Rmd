@@ -8,7 +8,7 @@ output:
 ---
 
 # 0. Imports
-
+A continuación se expone el código y comentarios resultados de la realización de la práctica 2.
 #### Importar librerias
 
 ```{r}
@@ -26,8 +26,9 @@ library(factoextra)
 library(ggbiplot)
 library(randomForest)
 library(ROCR)
-library('vcd')
-
+library(vcd)
+library(ggmosaic)
+library(cowplot)
 ```
 
 #### Importar datos
@@ -41,7 +42,7 @@ p2_test <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS 
 ```
 
 
-# 1. Exploratory Data Analysis
+# 1. Preprocesado de los datos
 
 En este apartado se va hacer el análisi exploratorio de los datos.
 
@@ -56,9 +57,23 @@ Eliminamos la variable id del dataset ya que es el indice, y no aporta informaci
 p2_train <- p2_train %>% select(-id)
 ```
 
+Summary de los datos
+
+
+```{r}
+summary(p2_train) 
+```
+
+Se elimina la variable pdays debido a que no a porta informacion porque solo tiene digitos 999
+
+```{r}
+p2_train <- p2_train %>% select(-pdays)
+```
+
+
 ### Para los datos : 
 
-#### 000. Nans handling
+#### 1.0 Nan handling
 
 Se puede apreciar que no encontramos ningún nan en las columnas del dataset, haciendo que no tengamos que tratar con ellos.
 
@@ -66,7 +81,7 @@ Se puede apreciar que no encontramos ningún nan en las columnas del dataset, ha
 p2_train %>% group_by() %>% summarise_all(funs(sum(is.na(.))))
 ```
 
-#### 00. Duplicates handling
+#### 1.1 Duplicates handling
 
 Se eliminan las filas duplicadas del dataset.
 
@@ -76,140 +91,60 @@ p2_train <- p2_train %>%
 p2_train
 ```
 
-summary de todo para visualizar los datos
+
+#### 1.2. Separar datos entre numericos y categoricos
 
 
-```{r}
-summary(p2_train) 
-```
-
-Se elimina la variable pdays debido a que no a porta informacion
-
-```{r}
-p2_train <- p2_train %>% select(-pdays)
-```
-
-Se visualiza si los datos estan estructurados por factores
+Se visualiza si la estructura de las variables
 ```{r}
 str(p2_train)
 
+```
+se visualiza de la siguiente manera para separar las numericas de las categoricas 
+
+```{r}
 sapply(p2_train, class) 
 ```
-se visualiza las columnas que son factor 
+Se visualiza el numero de columna que se encuentra cada variable factorial
 
 ```{r}
  which(sapply(p2_train, is.factor))
 ```
 
-
 Se crea un vector con las columnas que son factoriales 
 
 ```{r}
-v.factorial=c(2,3,4,5,6,7,8,9,10,13)
+var.cat <- which(sapply(p2_train,class)=="factor" & names(p2_train)!="y")
 ```
-
-caret
-#install.packages('vcd')
-
-mosaic( ~ job + y, data = p2_train, highlighting = "job", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
-
-
-
-  
-  ver cuanto hay en cada categoria de job
-  table(p2_train$job)
-  
- Para reducir las categorias y crear nuevas columnas vamos a clonar el dateframe con nombre prediction
- 
-```{r}
-predictors <- p2_train
-```
- quitar los unknown de la data predictors de la columna job
- 
+Se visualiza las variables factoriales con relacion a la variable Y
 ```{r}
 
-predictors <- predictors[!(predictors$job == 'unknown'),]
-```
- 
-Se recategoriza en reducir a 2 categorias 
-
-trabaja = admin + technician + self-employe + management + services + entrepreneur + blue-collar + housemaid
-no-trabaja = student +  retired + unemployed
-
-
-```{r}
-predictors$job2  <- ifelse((predictors$job == 'student')|(predictors$job == 'retired')|(predictors$job == 'unemployed'),'no-work','work')
-
-```
-
-visual;izar month tiene muchas categorias
-```{r}
- table(predictors$month2 )
-```
-
-
-Se recategoriza en reducir a 2 el mes
-1-semestre = mar + apr + may + jun + jul  
-2-semestre = aug + sep + oct + nov + dec  
-
-
-
-```{r}
-predictors$month2  <- ifelse((predictors$month == 'mar')|(predictors$month == 'apr')|(predictors$month == 'may')|(predictors$month == 'jun')|(predictors$month == 'jul'),'1-semestre','2-semestre')
-```
-
-
-
-
-```{r}
-mosaic( ~ job2 + month2  + y, data = predictors, highlighting = "job2", highlighting_fill = c("lightblue", "pink"), direction = c("v","h","v"))
-```
-
-
-############################################################
-# Descriptiva bivariante
-############################################################
-##-- Variables categoricas
-sapply(datos,class)
-var.cat <- which(sapply(datos,class)=="factor" & names(datos)!="y")  # variables que son categoricas (factores)
-##--Mosaicplot para las categoricas
-for(vc in var.cat)  mosaicplot(datos[,vc]~datos$y,main=names(datos)[vc],col=2:3,las=1)
-
-
-##--Densidad para las variables numericas
-var.num <- which(sapply(datos,class) %in% c("numeric","integer"))    # variables que son numericas
-for(vn in var.num) cdplot(datos$y~datos[,vn],main=names(datos)[vn],n=512)
-
-
-
-
-```{r}
-sapply(p2_train,class)
-var.cat <- which(sapply(p2_train,class)=="factor" & names(p2_train)!="y")  # variables que son categoricas (factores)
-##--Mosaicplot para las categoricas
 for(vc in var.cat)  mosaicplot(p2_train[,vc]~p2_train$y,main=names(p2_train)[vc],col=2:3,las=1)
 ```
-##--Densidad para las variables numericas
 
-  # variables que son numericas
+opcion 2 de grafico 
+
 ```{r}
-
-var.num <- which(sapply(p2_train,class) %in% c("numeric","integer"))  
-for(vn in var.num) cdplot(p2_train$y~p2_train[,vn],main=names(p2_train)[vn],n=512)
+ggplot(p2_train, aes(y,  fill=job)) +      #1
+  geom_bar()+                                          #2
+  
+  labs(x= "Y",  y="Frecuencias", fill="Job") +  #3 
+  
+  ylim(c(0,30000))  +                  #4   
+  #xlim(c(0,300)) +                  #4
+  
+  ggtitle("Diagrama de barras") +    #5
+  #coord_flip() +                    #6
+  #theme_bw() +                      #7
+  theme_bw(base_size = 12) 
 ```
 
+#### 2.0. Hacer boxplots de los campos y mirar outliers en los datos
 
-
-
-
-
-#### 1. Hacer boxplots de los campos y mirar outliers en los datos
-
-descriptiva de los valores numericos
-
+(Sobre variables numericas)
 
 ```{r}
-meltPred <- predictors %>% select(where(is.numeric)) %>% melt()
+meltPred <- p2_train %>% select(where(is.numeric)) %>% melt()
 meltPred %>%
  ggplot(aes(factor(variable), value)) +
    geom_violin(width=1, color = "gray", alpha = 0.2, fill = 'green' ) +
@@ -217,232 +152,92 @@ meltPred %>%
              outlier.size=1, notch=TRUE) + facet_wrap(~variable, scale="free")
 ```
 
-#### 3. PCA 
+Estos gráficos representan un boxplot y un violinplot sobre todas las variables numericas del dataset. Podemos apreciar:
+
+- La columna age se ditribuye entre el 17 y el 98, con una media situada en los 39.98.  Encontramos numersos outliers cuando el valor es mayor de 70.
+
+- La columna campaign se ditribuye entre el 1 y el 31, con una media situada en los 2.559. Encontramos numersos outliers cuando el valor es mayor de 7.
+
+- La columna previous se ditribuye entre el 0 y el 7, con una media situada en los 0.16. Encontramos numersos outliers cuando el valor es mayor de 1.
+
+- La columna emp.var.rate se distribuye entre el -3.4 y el 1.4 con una media alrededor de los 0.068. No encontramos otuliers.
+
+- La columna cons.price.idx se distribuye entre el 92 y el 94 con una media alrededor de los 93. No encontramos otuliers.
+
+- La columna cons.conf.idx se distribuye entre el -50 y el -26 con una media alrededor de los -40. Encontramos otuliers cuando el valor es mayor a -30.
+
+- La columna euriborn3m se distribuye entre el 0.6 y el 5 con una media alrededor de los 3.6. No encontramos otuliers.
+
+- La columna nr.employed se distribuye entre el 4964 y el 5228 con una media alrededor de los 5166. No encontramos otuliers.
+
+
+#### 2.1 Matriz de correlaciones de pearson de las variables numericas
 
 ```{r}
-pca <- predictors %>% select(where(is.numeric)) %>% sample_n(200) %>%
-  prcomp(scale. = TRUE, center = TRUE)
+corrp <- p2_train %>% select(where(is.numeric)) %>%  cor(method = 'pearson')
+corrp %>% ggcorrplot(hc.order = TRUE, type = 'lower', lab=TRUE,
+                      outline.col = "white",
+                       ggtheme = ggplot2::theme_gray,
+                       colors = c("#6D9EC1", "white", "#E46726")
+                      )
+
+```
+mejora en la prediccion.
+Con la variable nr.employed, estan directamente relacionadas las columnas emp.var.rate, euribor3m, y previous y la columna euribor3m esta indirectamente realcionada.
+
+
+#### 2.3 PCA 
+
+Realizamos un PCA sobre los datos para extraer los componentes principales y estudiarlos.
+
+```{r}
+pca <- p2_train %>% select(where(is.numeric)) %>% sample_n(200) %>%
+  prcomp(scale. = TRUE, center = TRUE) #Se debe hacer un sample para posteriormente poder apreciar graficamente la distribución PCA.
 summary(pca)
 ```
 
-
 ```{r}
 pca %>% 
-  ggbiplot::ggbiplot(scale = 1)
+  ggbiplot::ggbiplot(scale = 1,ellipse = T)
+
 ```
 
-
-### Para el target : 
-
-#### 0. Analisis lógico: variable categorica o continua, max mins, boxplots...
+Gràfico que representa la ponderación de las variables utilizadas para el PCA.
 
 
-La variable target 'count' es una variable categorica que representa el numero de bicicletas alquiladas en las grandes ciudades. La variable tiene una media de 190 y un std de 182, un valor bastante elevado que indica mucha variación en la variable.
-```{r}
-corrs$Pearson
-```
+#### 3 Grafica categorica
 
-#### 1. Hacer barplot(o otro) para mirar la distribución de los targets (son balanceados)
-
-Partiendo de la base que la variable target es continua, podemos apreciar que la frequencia de la misma sigue una distribución parecida a la exponencial, ya que cómo más se aleja del número 0 menos frequencia encontramos.
-Habrá que tener en cuenta entonces, que el modelo va a tender a predecir valores bajos en la mayoria de los casos.
+Para graficarlo se realiza un one hot coding del data frame para apreciar de forma adecuado la categoria "y"
 
 ```{r}
-p2_train %>%
-ggplot( aes(x=count)) + 
- geom_histogram(aes(y=..density..), colour="black", fill="white", binwidth = 20)+
- geom_density(alpha=.2, fill="#FF6666") + theme_classic()
-```
+dummy <- dummyVars(" ~ .", data=p2_train)
+newdata <- data.frame(predict(dummy, newdata = p2_train)) 
 
-## 2. MODELO
-
-#### 1. Normalización y preparación de los datos
-
-```{r}
-
-p2_train %>% mutate(across(where(is.numeric), scale))
+newdata
 ```
 
 
-# glm
-
-```{r}
-mod_glm <- glm(y~., p2_train, family = binomial())
-mean(mod_glm$residuals^2)
-```
-mod.glm0 <- glm(y~.,datos,family=binomial)    # estimacion del modelo
-summary(mod.glm0)   
-```{r}
-mod.glm0 <- glm(y~.,p2_train,family=binomial)    # estimacion del modelo
-summary(mod.glm0)  
-```
-```{r}
-mod.glm1 <- step(mod.glm0)
-summary(mod.glm1)
-```
+Partiendo de la base que la variable target es categorica, se aprecia una gran cantidad de y con no a comparacion de yes.
 
 
 ```{r}
-library(caret)
-View(varImp(mod.glm1))
-```
-```{r}
-library(ResourceSelection)
-hoslem.test(mod.glm1$y, fitted(mod.glm1))
+ggplot(data = 
+    newdata %>% 
+    select(y.no, y.yes) %>% 
+    mutate(y = ifelse(y.no == 1, "No",
+        ifelse(y.yes == 1, "Yes", "NONE"))),
+    aes(x = y, fill = y)
+) + 
+    geom_bar() 
 
 ```
-
-############################################################
-# Estimacion de un Odds Ratio
-############################################################
-##-- Variable categorica
-
-```{r}
-
-exp(mod.glm1$coef["contact"])    # Los extranjeros tienen un oddsratio de 0.17 respecto a los no extranjeros. Es decir, las probabilidades de pagar son un 0.17 la de los nacionales 
-
-##-- Variable numerica
-exp(mod.glm1$coef["age"])           # Por cada anyo de mas de la persona se incrementa en un 2% (aprox) la probabilidad de que acabe pagando
-
-##--Intervalos de confianza
-IC <- confint(mod.glm1)             # Intervalos de  confianza para los coeficientes
-round(exp(IC),2)  
-```
-############################################################
-# Estimacion de la probabilidad de pago
-############################################################
-##-- Probabilidades predichas
-
-```{r}
-pr <- predict(mod.glm1,p2_train,type="response")
-pr
-
-##--Probabilidad maxima y minima
-pos.max <- which.max(pr)        # posicion del individuo con mayor probabilidad de pagar
-pr[pos.max]                     # probabilidad de dicho individuo 
-p2_train$y[pos.max]                # pago?
-
-pos.min <- which.min(pr)        # posicion del individuo con menor probabilidad de pagar
-pr[pos.min]                     # probabilidad de dicho individuo 
-p2_train$y[pos.min]                # pago?
-
-boxplot(pr~y,p2_train)
-```
-
-
-
-############################################################
-# Curva ROC y AUC
-############################################################
-##-- Instalar libreria AUC
-# install.packages('AUC')
-```{r}
-library(AUC)
-
-##-- Curva ROC y AUC
-pr <- predict(mod.glm1,type='response')
-roc.curve <- roc(pr,p2_train$y)
-plot(roc.curve)
-AUC::auc(roc.curve)
-```
-
-
-############################################################
-#
-# Parte 2. Testear resultados
-#
-############################################################
-test <- read.table('bank0_test.txt',header=TRUE,sep=';', stringsAsFactors = TRUE)
-
-############################################################
-# Calcular predicciones y compararlas con valores reales
-############################################################
-
-```{r}
-pr <- predict(mod.glm1,p2_test)   # probabilidades predichas
-boxplot(pr~p2_test$y)             # Como son estas probabilidades en ambos grupos de respuesta
-roc.curve <- roc(pr,p2_test$y)    # Calculo de la curva ROC
-plot(roc.curve)                # Dibujo de la curva ROC
-AUC::auc(roc.curve)                 # AUC de la curva ROC
-
-
-
-```
-```{r}
-##-- Sensibilidad y especificidad para un punto de corte concreto
-s <- AUC::sensitivity(pr,p2_test$y)
-e <- AUC::specificity(pr,p2_test$y)
-a <- AUC::accuracy(pr,p2_test$y)
-df <- data.frame(cutpoints=s$cutoffs,sens=s$measure,esp=e$measure,acc=a$measure)
-View(round(df,3))
-
-
-```
+  
+ Para reducir las categorias y crear nuevas columnas vamos a clonar el dateframe con nombre prediction
+ 
+ 
+ 
 
 
 
 
-```{r}
-##-- Escoger un punto de corte --> Matriz de confusion
-p2_test$doy.credito <- ifelse(pr>0.5,'si','no')  # Doy credito a aquellos con un probabilidad predicha de pagar superior a 0.5
-with(p2_test,table(doy.credito,y))
-with(p2_test,round(100*prop.table(table(doy.credito,y),1),1))
-```
-
-
-
-
-Modelo Random Forest
-
-
-```{r}
-library(randomForest)
-library(datasets)
-library(caret)
-```
-
-
-```{r}
-str(p2_train)
-```
-
-```{r}
-rf <- randomForest(
-  y ~ .,
-  data=p2_train
-)
-
-set.seed(71)
-rf <-randomForest(y~.,data=p2_train, ntree=500) 
-```
-
-
-https://bookdown.org/content/2031/ensambladores-random-forest-parte-ii.html
-
-https://towardsdatascience.com/random-forest-in-r-f66adf80ec9
-
-
-```{r}
-set.seed(1234)
-rf <- randomForest(y~., data = p2_train, mtry = 10, importance = TRUE, ntree = 500 )
-rf
-```
-
-
-```{r}
-importance(rf)
-varImpPlot(rf)
-```
-Model performance (mse)
-```{r}
-mseDF <- data.frame(pred = rf$predicted, gt = rf$y)
-mean((mseDF$pred-mseDF$gt)^2) #mse
-```
-mse bastante correcto
-
-```{r}
-mseDF
-
-
-```
 
