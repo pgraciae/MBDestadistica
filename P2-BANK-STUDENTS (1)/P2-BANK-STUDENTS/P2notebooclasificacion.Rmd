@@ -347,3 +347,11 @@ write.table(x = mseDF, file = "p2.txt", sep = ",",
             row.names = FALSE, col.names = TRUE)
 ```
 
+```{r}
+boxplot(y_pred~p2_train_fin[!train.sel,]$y)             # Como son estas probabilidades en ambos grupos de respuesta
+roc.curve <- roc(y_pred,p2_train_fin[!train.sel,]$y)    # Calculo de la curva ROC
+plot(roc.curve)                # Dibujo de la curva ROC
+AUC::auc(roc.curve) 
+```
+
+
