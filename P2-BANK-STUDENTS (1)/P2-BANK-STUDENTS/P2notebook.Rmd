@@ -125,7 +125,7 @@ for(vc in var.cat)  mosaicplot(p2_train[,vc]~p2_train$y,main=names(p2_train)[vc]
 opcion 2 de grafico 
 
 ```{r}
-ggplot(p2_train, aes(y,  fill=job)) +      #1
+ ggplot(p2_train, aes(y,  fill=job)) +      #1
   geom_bar()+                                          #2
   
   labs(x= "Y",  y="Frecuencias", fill="Job") +  #3 
@@ -150,6 +150,9 @@ meltPred %>%
    geom_violin(width=1, color = "gray", alpha = 0.2, fill = 'green' ) +
     geom_boxplot(width=0.3, color="black", fill='blue', alpha=0.3, outlier.colour="red", outlier.shape=8,
              outlier.size=1, notch=TRUE) + facet_wrap(~variable, scale="free")
+
+
+
 ```
 
 Estos gráficos representan un boxplot y un violinplot sobre todas las variables numericas del dataset. Podemos apreciar:
