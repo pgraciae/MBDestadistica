@@ -11,7 +11,7 @@ output:
 A continuación se expone el código y comentarios resultados de la realización de la práctica 2.
 #### Importar librerias
 
-```{r warning=TRUE}
+```{r warning=FALSE}
 library(tidyverse)
 library(tidyr)
 library(dplyr)
@@ -34,6 +34,7 @@ library(e1071)
 library(caTools)
 library(class)
 library(AUC)
+library(ggcorrplot)
 ```
 
 #### Importar datos
@@ -56,11 +57,7 @@ En este apartado se va hacer el análisi exploratorio de los datos.
 head(p2_train)
 ```
 
-Eliminamos la variable id del dataset ya que es el indice, y no aporta información.
 
-```{r}
-p2_train <- p2_train %>% select(-id)
-```
 
 Summary de los datos
 
@@ -96,7 +93,12 @@ p2_train <- p2_train %>%
 p2_train
 ```
 
+Eliminamos la variable id del dataset ya que es el indice, y no aporta información.
 
+```{r}
+p2_train_fin <- p2_train
+p2_train <- p2_train %>% select(-id)
+```
 #### 1.2. Separar datos entre numericos y categoricos
 
 
@@ -207,6 +209,7 @@ onehot <- dummyVars(" ~ .", data=p2_train)
 onehotdata <- data.frame(predict(onehot, newdata = p2_train)) 
 
 onehotdata
+
 ```
 
 
@@ -240,7 +243,6 @@ La variable target debe quedar fuera del one hot coding
 onehotdata <- onehotdata %>% select(-y.no,-y.yes)
 onehotdata <- onehotdata %>% mutate(y=as.factor(ifelse(p2_train$y== "yes", 1, 0)))
 onehotdata
-
 ```
 Se agrega la columna "y" representando yes con 1 y viceversa.
 
@@ -250,7 +252,7 @@ Aunque se nos dan dos data sets, el data set de test no tiene la variable ground
 ```{r}
 p <- 0.8                                   
 n <- nrow(onehotdata)                               
-set.seed(12345)
+set.seed(123456)
 train.sel <- sample(c(FALSE,TRUE),n,rep=TRUE,prob=c(1-p,p))
 train <- onehotdata[train.sel,]
 test <- onehotdata[!train.sel,]
@@ -270,6 +272,7 @@ cl = train$y,
 k = 20)
 
 length(classifier_knn)
+
 ```
 
 Rendimiento sobre el test:
@@ -332,5 +335,15 @@ misClassError <- mean(y_pred != test$y)
 print(paste('Accuracy =', 1-misClassError))
 
 ```
+```{r}
+mseDF <- data.frame(id = p2_train_fin[!train.sel,]$id, gt = y_pred)
+mseDF
 
-### naive balles
+```
+Exportar a un fichero p2.txt de texto con la probabilidad predicha con la columna id y su probabilidad 
+
+```{r}
+write.table(x = mseDF, file = "p2.txt", sep = ",", 
+            row.names = FALSE, col.names = TRUE)
+```
+
