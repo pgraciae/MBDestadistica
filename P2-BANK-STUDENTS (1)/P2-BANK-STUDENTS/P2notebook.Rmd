@@ -36,9 +36,9 @@ library(cowplot)
 Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p2_train. El p2_test se usara únicamente para validar los resultados al final de todo de la practica.
 
 ```{r}
-p2_train <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
+p2_train <- read.csv("./p2_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
 
-p2_test <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
+p2_test <- read.csv("./p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
 ```
 
 
