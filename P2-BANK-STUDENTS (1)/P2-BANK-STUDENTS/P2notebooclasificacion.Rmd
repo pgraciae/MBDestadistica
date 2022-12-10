@@ -335,13 +335,14 @@ misClassError <- mean(y_pred != test$y)
 print(paste('Accuracy =', 1-misClassError))
 
 ```
+Con el modelo del Random Forest de clasificacion obtenemos accuracy sobre el test del 95%. Ademas viendo la confusion matrix se aprecia como nuestro modelo no esta overfited ya que vemos que la clase minoritaria tiene numerosas asignaciones correctas.
+
 ```{r}
 mseDF <- data.frame(id = p2_train_fin[!train.sel,]$id, gt = y_pred)
 mseDF
 
 ```
 Exportar a un fichero p2.txt de texto con la probabilidad predicha con la columna id y su probabilidad 
-
 ```{r}
 write.table(x = mseDF, file = "p2.txt", sep = ",", 
             row.names = FALSE, col.names = TRUE)
@@ -354,4 +355,8 @@ plot(roc.curve)                # Dibujo de la curva ROC
 AUC::auc(roc.curve) 
 ```
 
+## 3. Conclusiones
 
+El algoritmo de random forest es el que mejor predice la probabilidad del cliente que se le realiza la llamada acepte el producto que se le ofrece, con un accurancy del 95%. Podemos ver analizando los resultados que el modelo no tiene mucho overfitting y generaliza bien, esto es asi en parte al haber creado un arbol no demasiado grande, evitando así la caída de valores en hojas. 
+
+Cómo algoritmos de clasificacion se podrian intentar también el xgboost o el catboost pero perderiamos entendimiento de lo que esta haciendo el modelo, asi que se ha obviado para este trabajo.
