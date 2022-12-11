@@ -45,8 +45,8 @@ Aunque se nos entrega el fichero de train entero y podriamos obtener la variable
 p2_train <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_train.csv", head = TRUE, sep=";", stringsAsFactors=TRUE)
 
 p2_test <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
+p2_test_fin <- read.csv("D:/Master big data/Estadistica/Practica 1/P2-BANK-STUDENTS (1)/P2-BANK-STUDENTS/p2_test.csv", sep=";", head = TRUE, stringsAsFactors=TRUE)
 ```
-
 
 # 1. Preprocesado de los datos
 
@@ -96,7 +96,6 @@ p2_train
 Eliminamos la variable id del dataset ya que es el indice, y no aporta información.
 
 ```{r}
-p2_train_fin <- p2_train
 p2_train <- p2_train %>% select(-id)
 ```
 #### 1.2. Separar datos entre numericos y categoricos
@@ -337,23 +336,47 @@ print(paste('Accuracy =', 1-misClassError))
 ```
 Con el modelo del Random Forest de clasificacion obtenemos accuracy sobre el test del 95%. Ademas viendo la confusion matrix se aprecia como nuestro modelo no esta overfited ya que vemos que la clase minoritaria tiene numerosas asignaciones correctas.
 
-```{r}
-mseDF <- data.frame(id = p2_train_fin[!train.sel,]$id, gt = y_pred)
-mseDF
+#### 4.6 ROC Random Forest
 
-```
-Exportar a un fichero p2.txt de texto con la probabilidad predicha con la columna id y su probabilidad 
-```{r}
-write.table(x = mseDF, file = "p2.txt", sep = ",", 
-            row.names = FALSE, col.names = TRUE)
-```
+A continuación se realiza una ROC de la performance del modelo sobre el test que ha obtenido mejores resultados sobre el train y el test, el alhgoritmo Random Forest.
 
 ```{r}
-boxplot(y_pred~p2_train_fin[!train.sel,]$y)             # Como son estas probabilidades en ambos grupos de respuesta
-roc.curve <- roc(y_pred,p2_train_fin[!train.sel,]$y)    # Calculo de la curva ROC
+boxplot(y_pred~test$y)             # Como son estas probabilidades en ambos grupos de respuesta
+roc.curve <- roc(y_pred,test$y)    # Calculo de la curva ROC
 plot(roc.curve)                # Dibujo de la curva ROC
 AUC::auc(roc.curve) 
 ```
+
+#### 5. Prediccion dataset de test
+Para poder hacer la prediccion sobre el dataset de test se tomara el modelo de clasificación con mejor performance y se hara un predict con el modelo ya entrenado y validado. 
+Hay que tener en cuenta que tendremos que hacer las mismas transformaciones en el dataset de test que las hechas al dataset de train, y hay que usar el mismo modelo de transformación onehot encoding para que las variables se separen uniformemente en los dos datasets (el usado para el entrenamiento y el que se va a usar a continuación).
+
+#### 5.1 Preprocesado y encoding
+```{r}
+p2_test <- p2_test %>% select(-pdays, -id)
+
+# Se realiza el onehot encoding del test con el mismo modelo 'onehot' que se uso para el train para asegurar homogeniedad en la codificación.
+
+onehotTest <- data.frame(predict(onehot, newdata = p2_test)) 
+onehotTest
+```
+Se puede apreciar cómo el dataset de  test sigue la misma estructura y codificación que el dataset de training.
+
+#### 5.2 Predicción test
+```{r}
+predFinal <- predict(mod_rf, newdata = select(onehotTest,-y))
+
+finalDF <- data.frame(id = p2_test_fin$id, gt = y_pred) #se obtiene el id del dataset original
+finalDF
+```
+
+Exportar a un fichero p2.txt de texto con la probabilidad predicha con la columna id y su probabilidad 
+```{r}
+write.table(x = finalDF, file = "p2.txt", sep = ",", 
+            row.names = FALSE, col.names = TRUE)
+```
+
+
 
 ## 3. Conclusiones
 
