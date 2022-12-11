@@ -11,7 +11,7 @@ output:
 A continuación se expone el código y comentarios resultados de la realización de la práctica 2.
 #### Importar librerias
 
-```{r warning=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(tidyverse)
 library(tidyr)
 library(dplyr)
