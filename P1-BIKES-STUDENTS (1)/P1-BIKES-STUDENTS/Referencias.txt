@@ -1,2 +1,0 @@
-PCA
-https://www.datacamp.com/tutorial/pca-analysis-r
