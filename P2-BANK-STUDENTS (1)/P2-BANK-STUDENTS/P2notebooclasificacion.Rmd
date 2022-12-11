@@ -353,20 +353,23 @@ Hay que tener en cuenta que tendremos que hacer las mismas transformaciones en e
 
 #### 5.1 Preprocesado y encoding
 ```{r}
-p2_test <- p2_test %>% select(-pdays, -id)
 
+p2_test <- p2_test %>% select(-pdays, -id)
+# se crea una variable "y" dummy para poder hacer el codificado del dataset de test
+
+p2_test <- p2_test %>% mutate(y=NA)
 # Se realiza el onehot encoding del test con el mismo modelo 'onehot' que se uso para el train para asegurar homogeniedad en la codificación.
 
-onehotTest <- data.frame(predict(onehot, newdata = p2_test)) 
+onehotTest <- data.frame(predict(onehot, newdata = p2_test)) %>% select(-yFALSE,-yTRUE) 
 onehotTest
 ```
 Se puede apreciar cómo el dataset de  test sigue la misma estructura y codificación que el dataset de training.
 
 #### 5.2 Predicción test
 ```{r}
-predFinal <- predict(mod_rf, newdata = select(onehotTest,-y))
+predFinal <- predict(mod_rf, newdata = onehotTest)
 
-finalDF <- data.frame(id = p2_test_fin$id, gt = y_pred) #se obtiene el id del dataset original
+finalDF <- data.frame(id = p2_test_fin$id, prediction = predFinal) #se obtiene el id del dataset original
 finalDF
 ```
 
