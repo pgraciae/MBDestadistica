@@ -1,0 +1,141 @@
+---
+title: "Practica2"
+author: "Sebastian Cueva, Pol Gracia"
+date: "11/12/2022"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+
+# 0. Imports
+A continuación se expone el código y comentarios resultados de la realización de la práctica 2.
+#### Importar librerias
+
+```{r warning=FALSE}
+library(scatterplot3d)  
+library(flexclust)
+library(NbClust)        # NbClust
+library(cluster)
+library(factoextra)     # fviz_***
+library(kernlab)        # kkmeans
+library(clValid)        # clValid
+library(cluster) 
+library(tidyverse)
+library(tidyr)
+library(dplyr)
+library(knitr)
+library(ggplot2)# pam
+library(ggcorrplot)
+library(minerva)
+
+```
+#### Importar datos
+
+Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p2_train. El p2_test se usara únicamente para validar los resultados al final de todo de la practica.
+
+```{r}
+p3_train <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_train.txt", stringsAsFactors=TRUE)
+p3_test <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", stringsAsFactors=TRUE)
+p2_test_fin <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", stringsAsFactors=TRUE)
+```
+
+# 1. Preprocesado de los datos
+
+En este apartado se va hacer el análisi exploratorio de los datos.
+
+```{r}
+head(p3_train)
+```
+Summary de los datos
+
+```{r}
+summary(p3_train)
+```
+
+### Para los datos : 
+
+#### 1.0 Nan handling
+
+Se puede apreciar que no encontramos ningún nan en las columnas del dataset, haciendo que no tengamos que tratar con ellos.
+
+```{r}
+p3_train %>% group_by() %>% summarise_all(funs(sum(is.na(.))))
+```
+#### 1.1 Duplicates handling
+
+Se eliminan las filas duplicadas del dataset.
+
+```{r}
+p3_train <- p3_train %>%
+                distinct()
+p3_train
+```
+
+#### 2.1 Matriz de correlaciones de pearson de las variables numericas
+
+```{r}
+corrp <- p3_train %>% select(where(is.numeric)) %>%  cor(method = 'pearson')
+corrp %>% ggcorrplot(hc.order = TRUE, type = 'lower', lab=TRUE,
+                      outline.col = "white",
+                       ggtheme = ggplot2::theme_gray,
+                        colors = c("#6D9EC1", "white", "#E46726")
+                      )
+
+```
+
+
+#### 2.2 PCA 
+
+Realizamos un PCA sobre los datos para extraer los componentes principales y estudiarlos.
+
+```{r}
+pca <- p3_train %>% select(where(is.numeric)) %>% sample_n(200) %>%
+  prcomp(scale. = TRUE, center = TRUE) #Se debe hacer un sample para posteriormente poder apreciar graficamente la distribución PCA.
+summary(pca)
+```
+p3 train
+
+
+############################################################
+# Numero de grupos
+############################################################
+##-- Regla del codo
+
+```{r}
+set.seed(1234)
+wcss <- vector()
+for(i in 1:20){
+  wcss[i] <- sum(kmeans(p3_train, i)$withinss)
+}
+
+##-- Regla del codo (Inercia intra) --> Equivalente al anterior
+fviz_nbclust(p3_train,kmeans,method="wss")
+
+##-- Numero de clusteres segun indicadores
+set.seed(12345)
+ncluster <- NbClust(p3_train, min.nc=2, max.nc=15, method="kmeans")
+ncluster
+barplot(table(ncluster$Best.n[1,]))
+heatmap(scale(ncluster$All.index),Rowv=NA,Colv = NA)
+```
+
+
+
+ldap
+sumurary
+
+matriz de correlaciones
+
+pca
+n brutos
+regla codo 
+dendograma
+*decisdir numero de claseter en funcion de eso 
+kmeans
+
+
+
+
+
+
