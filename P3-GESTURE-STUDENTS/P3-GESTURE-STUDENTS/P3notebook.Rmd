@@ -25,9 +25,16 @@ library(tidyverse)
 library(tidyr)
 library(dplyr)
 library(knitr)
-library(ggplot2)# pam
+library(ggplot2)
 library(ggcorrplot)
 library(minerva)
+library(NbClust)        # Function NbClust
+library(factoextra)     # Several clustering graphics
+library(clustertend)    # Hopkins index
+library(FactoMineR)     # Factor analysis
+library(dendextend)     # Comparar dendogramas
+library(corrplot)       # Graficos de correlaciones
+library(cluster)
 
 ```
 #### Importar datos
@@ -35,9 +42,9 @@ library(minerva)
 Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p2_train. El p2_test se usara únicamente para validar los resultados al final de todo de la practica.
 
 ```{r}
-p3_train <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_train.txt", stringsAsFactors=TRUE)
-p3_test <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", stringsAsFactors=TRUE)
-p2_test_fin <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", stringsAsFactors=TRUE)
+p3_train <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_train.txt", header=TRUE, stringsAsFactors=TRUE)
+p3_test <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", header=TRUE, stringsAsFactors=TRUE)
+p2_test_fin <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", header=TRUE, stringsAsFactors=TRUE)
 ```
 
 # 1. Preprocesado de los datos
@@ -94,8 +101,11 @@ pca <- p3_train %>% select(where(is.numeric)) %>% sample_n(200) %>%
   prcomp(scale. = TRUE, center = TRUE) #Se debe hacer un sample para posteriormente poder apreciar graficamente la distribución PCA.
 summary(pca)
 ```
-p3 train
+se crea un data frame sin la variable target
 
+```{r}
+p3_train_predit <- p3_train %>% select(-y)
+```
 
 ############################################################
 # Numero de grupos
@@ -103,39 +113,136 @@ p3 train
 ##-- Regla del codo
 
 ```{r}
-set.seed(1234)
-wcss <- vector()
-for(i in 1:20){
-  wcss[i] <- sum(kmeans(p3_train, i)$withinss)
+##-- Regla del codo
+VE <- c()
+for (k in 2:10){
+  km <- kmeans(p3_train_predit,centers=k,nstart=10, iter.max=50)
+  VE[k] <- km$betweenss/km$totss       
 }
-
+plot(VE,type="b",pch=19,xlab="Numero de grupos",ylab="Variabilidad explicada")
+```
+```{r}
 ##-- Regla del codo (Inercia intra) --> Equivalente al anterior
-fviz_nbclust(p3_train,kmeans,method="wss")
+fviz_nbclust(p3_train_predit,kmeans,method="wss")
 
-##-- Numero de clusteres segun indicadores
-set.seed(12345)
-ncluster <- NbClust(p3_train, min.nc=2, max.nc=15, method="kmeans")
-ncluster
-barplot(table(ncluster$Best.n[1,]))
-heatmap(scale(ncluster$All.index),Rowv=NA,Colv = NA)
+```
+
+Basado en las graficas del codo se seleccionara el numero de cluster 6 debido que es que mnejor se representa en la siguiente grafica
+
+```{r}
+##-- Prueba simple
+km0 <- kmeans(p3_train_predit,centers=6)
+km0$cluster                         # asignacion a los clusteres
+km0$centers                         # coordenadas de los centros de gravedad
+km0$totss                           # Inercia total
+km0$withinss                        # Inercia intra para cada cluster
+km0$tot.withinss                    # Inercia intra (global)
+km0$betweenss                       # Inercia entre
+km0$size                            # Tamanyo de los clusteres
+km0$iter                            # Iteraciones para converger
+
+##-- Calculo de la variabilidad explicada
+with(km0,betweenss/totss)
+```
+
+
+```{r}
+##-- 3 grupos
+km3 <- kmeans(p3_train_predit,centers=6,nstart=10)
+km3
+```
+
+
+```{r}
+
+
+##-- En las 2 primeras componentes
+pr.comp <- princomp(p3_train_predit)
+x <- pr.comp$scores[,1]
+y <- pr.comp$scores[,2]
+plot(x,y,pch=19,col=km3$cluster)
+
+# Con elipses
+fviz_cluster(list(data = p3_train_predit, cluster = km3$cluster),ellipse.type = "convex",
+             repel = TRUE,                                        
+             show.clust.cent = FALSE, ggtheme = theme_minimal())
+
+
 ```
 
 
 
-ldap
-sumurary
-
-matriz de correlaciones
-
-pca
-n brutos
-regla codo 
-dendograma
-*decisdir numero de claseter en funcion de eso 
-kmeans
+Se realizara la prueba tambien con 5 para ver los resultado de cada grafico
 
 
+```{r}
+##-- 2 grupos
+km2 <- kmeans(p3_train_predit,centers=5,nstart=10)
+
+# En las 2 primeras componentes
+plot(x,y,pch=19,col=km2$cluster)
+
+fviz_cluster(list(data = p3_train_predit, cluster = km2$cluster),ellipse.type = "convex",
+             repel = TRUE,                                        # Avoid label overplotting (slow)
+             show.clust.cent = FALSE, ggtheme = theme_minimal())
+```
+Se realizara la prueba tambien con 4 para ver los resultado de cada grafico
+
+```{r}
+##-- 2 grupos
+km2 <- kmeans(p3_train_predit,centers=4,nstart=10)
+
+# En las 2 primeras componentes
+plot(x,y,pch=19,col=km2$cluster)
+
+fviz_cluster(list(data = p3_train_predit, cluster = km2$cluster),ellipse.type = "convex",
+             repel = TRUE,                                        # Avoid label overplotting (slow)
+             show.clust.cent = FALSE, ggtheme = theme_minimal())
+```
 
 
+############################################################
+# K-mediods
+############################################################
 
+```{r}
+
+
+kmediods3 <- pam(p3_train_predit,6)
+fviz_cluster(list(data = p3_train_predit, cluster = kmediods3$cluster),ellipse.type = "convex",
+             repel = TRUE,                                        # Avoid label overplotting (slow)
+             show.clust.cent = FALSE, ggtheme = theme_minimal())
+randIndex(table(km3$cluster,kmediods3$cluster))                   # rand = 1 --> Imply same clustering 
+
+```
+
+
+```{r}
+data(p3_train_predit)
+datos <- scale(p3_train_predit)
+
+# Matriz de distancias euclídeas
+mat_dist <- dist(x = datos, method = "euclidean")
+# Dendrogramas con linkage complete y average
+hc_euclidea_complete <- hclust(d = mat_dist, method = "complete")
+hc_euclidea_average  <- hclust(d = mat_dist, method = "average")
+cor(x = mat_dist, cophenetic(hc_euclidea_complete))
+```
+```{r}
+cor(x = mat_dist, cophenetic(hc_euclidea_average))
+```
+```{r}
+library(factoextra)
+datos <- p3_train_predit
+datos <- scale(datos)
+set.seed(101)
+
+hc_euclidea_completo <- hclust(d = dist(x = datos, method = "euclidean"),
+                               method = "complete")
+
+fviz_dend(x = hc_euclidea_completo, k = 2, cex = 0.6) +
+  geom_hline(yintercept = 5.5, linetype = "dashed") +
+  labs(title = "Herarchical clustering",
+       subtitle = "Distancia euclídea, Lincage complete, K=2")
+```
 
