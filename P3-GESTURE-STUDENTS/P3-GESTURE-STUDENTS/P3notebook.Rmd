@@ -8,11 +8,11 @@ output:
 ---
 
 
-# 0. Imports
-A continuación se expone el código y comentarios resultados de la realización de la práctica 2.
+## 0. Imports
+# A continuacion se expone el código y comentarios resultados de la realización de la práctica 2.
 #### Importar librerias
 
-```{r warning=FALSE}
+```{r message=FALSE, warning=FALSE}
 library(scatterplot3d)  
 library(flexclust)
 library(NbClust)        # NbClust
@@ -35,16 +35,18 @@ library(FactoMineR)     # Factor analysis
 library(dendextend)     # Comparar dendogramas
 library(corrplot)       # Graficos de correlaciones
 library(cluster)
-
+library(e1071)
+library(randomForest)
+library(AUC)
+library(mclust)
 ```
 #### Importar datos
 
 Aunque se nos entrega el fichero de train entero y podriamos obtener la variable respuesta, se trataran cómo si de un caso real se tratara, y todo el EDA y el training se usara solo el p2_train. El p2_test se usara únicamente para validar los resultados al final de todo de la practica.
 
 ```{r}
-p3_train <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_train.txt", header=TRUE, stringsAsFactors=TRUE)
-p3_test <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", header=TRUE, stringsAsFactors=TRUE)
-p2_test_fin <- read.delim("D:/Master big data/Estadistica/Practica 1/P3-GESTURE-STUDENTS/P3-GESTURE-STUDENTS/p3_test.txt", header=TRUE, stringsAsFactors=TRUE)
+p3_train <- read.delim("./P3-GESTURE-STUDENTS/p3_train.txt", header=TRUE, stringsAsFactors=TRUE)
+p3_test <- read.delim("./P3-GESTURE-STUDENTS/p3_test.txt", header=TRUE, stringsAsFactors=TRUE)
 ```
 
 # 1. Preprocesado de los datos
@@ -62,14 +64,14 @@ summary(p3_train)
 
 ### Para los datos : 
 
-#### 1.0 Nan handling
+#### 1.1 Nan handling
 
 Se puede apreciar que no encontramos ningún nan en las columnas del dataset, haciendo que no tengamos que tratar con ellos.
 
 ```{r}
 p3_train %>% group_by() %>% summarise_all(funs(sum(is.na(.))))
 ```
-#### 1.1 Duplicates handling
+#### 1.2 Duplicates handling
 
 Se eliminan las filas duplicadas del dataset.
 
@@ -81,36 +83,86 @@ p3_train
 
 #### 2.1 Matriz de correlaciones de pearson de las variables numericas
 
+
 ```{r}
 corrp <- p3_train %>% select(where(is.numeric)) %>%  cor(method = 'pearson')
-corrp %>% ggcorrplot(hc.order = TRUE, type = 'lower', lab=TRUE,
-                      outline.col = "white",
-                       ggtheme = ggplot2::theme_gray,
-                        colors = c("#6D9EC1", "white", "#E46726")
-                      )
-
+corrp <- data.frame(corrp)
+corrp[corrp == 1] <- 0.0
+corrp <- corrp %>% filter_all(any_vars(. > 0.5), any_vars(. < -0.5))
+corrp
 ```
 
 
-#### 2.2 PCA 
+```{r}
+corrp %>% ggcorrplot(hc.order = TRUE, type = 'lower', lab=FALSE,
+                      outline.col = "white",
+                       ggtheme = ggplot2::theme_gray,
+                        colors = c("#6D9EC1", "white", "#E46726")
+                      ) + ggtitle("Columnas correlacionadas a mas de 0.5 o menos de -0.5")
+
+```
+Podemos ver en el grafico de correlaciones que aunque el date set contiene muchas columnas, como generalmente son independientes entre ellas asi que no se realizara ninguna transformacion.
+
+
+#### 2.2 Correlaciones con la variable target y
+
+Debemos cambiar la tipologia de la variable target 'y' a factor. Visualizamos las columnas más correlacionadas con la variable target 'y'.
+
+```{r}
+p3_train_fact <- p3_train %>% mutate_if(is.factor, as.numeric)
+corry <- p3_train_fact %>% cor(y = y, method = 'pearson') %>% data.frame()
+colnames(corry) <- 'corr'
+corry <- corry %>% arrange(desc(corr))
+corry
+```
+
+
+```{r}
+pt <- corry %>% slice(1:10) %>% arrange(corr)
+pt %>% ggplot(aes(x = row.names(pt), y = corr, fill = row.names(pt))) + geom_bar(stat = 'identity', width = 0.7) + ggtitle("Top 10 columnas corelacionadas con la variable target") +
+  xlab("Columna") + ylab("Correlacion Pearson")
+```
+Podemos apreciar cómo tenemos columnas bastante linearmente correlacionadas con la variable y, lo que nos indica que un modelo predictor podra funcionar bien sobre el dataset. 
+
+#### 2.3 Distribucion de la variable target
+```{r}
+p3_train %>% ggplot(aes(x = y, fill = y)
+) + 
+    geom_bar() 
+```
+Podemos apreciar cómo tenemos un dataset perfectamente balanceado y no vamos a encontrar problemas de unbalance en los modelos.
+
+
+#### 2.4 PCA 
 
 Realizamos un PCA sobre los datos para extraer los componentes principales y estudiarlos.
 
 ```{r}
 pca <- p3_train %>% select(where(is.numeric)) %>% sample_n(200) %>%
   prcomp(scale. = TRUE, center = TRUE) #Se debe hacer un sample para posteriormente poder apreciar graficamente la distribución PCA.
-summary(pca)
+
 ```
+```{r}
+pca %>% 
+  ggbiplot::ggbiplot(scale = 1,ellipse = T)
+
+```
+
+
+#### 2.5 Eliminacion de la variable target
+
 se crea un data frame sin la variable target
 
 ```{r}
 p3_train_predit <- p3_train %>% select(-y)
 ```
 
-############################################################
-# Numero de grupos
-############################################################
-##-- Regla del codo
+#### 3 Clustering no supervisado 
+
+Se realiza la regla del codo para determinar el numero de clsuter que son necesarios
+
+
+#### 3.1 Regla del codo
 
 ```{r}
 ##-- Regla del codo
@@ -121,19 +173,20 @@ for (k in 2:10){
 }
 plot(VE,type="b",pch=19,xlab="Numero de grupos",ylab="Variabilidad explicada")
 ```
+Se aprecia que desde el nodo 4 al 6 parece ser constante por lo cual se analizara el numero de cluster 4, 5 y 6 para obtener la mejor visualizacion
 ```{r}
 ##-- Regla del codo (Inercia intra) --> Equivalente al anterior
 fviz_nbclust(p3_train_predit,kmeans,method="wss")
 
 ```
 
-Basado en las graficas del codo se seleccionara el numero de cluster 6 debido que es que mnejor se representa en la siguiente grafica
+Basado en las graficas del codo se seleccionara el numero de cluster 6 como base inicial, se representa en la siguiente grafica
+
+#### 3.2 Prueba simple con 6 cluster para obtener valores
 
 ```{r}
 ##-- Prueba simple
 km0 <- kmeans(p3_train_predit,centers=6)
-km0$cluster                         # asignacion a los clusteres
-km0$centers                         # coordenadas de los centros de gravedad
 km0$totss                           # Inercia total
 km0$withinss                        # Inercia intra para cada cluster
 km0$tot.withinss                    # Inercia intra (global)
@@ -145,24 +198,27 @@ km0$iter                            # Iteraciones para converger
 with(km0,betweenss/totss)
 ```
 
+Se realiza una prueba simple para identificar valores inicialmente con el numero 6 de cluster
 
+#### 3.3 Kmeans
+
+
+#### 3.3.1 Numero de cluster 6
 ```{r}
 ##-- 3 grupos
 km3 <- kmeans(p3_train_predit,centers=6,nstart=10)
-km3
 ```
-
+Visualizacion del kmaens con 6 cluster
 
 ```{r}
 
 
-##-- En las 2 primeras componentes
 pr.comp <- princomp(p3_train_predit)
 x <- pr.comp$scores[,1]
 y <- pr.comp$scores[,2]
 plot(x,y,pch=19,col=km3$cluster)
 
-# Con elipses
+
 fviz_cluster(list(data = p3_train_predit, cluster = km3$cluster),ellipse.type = "convex",
              repel = TRUE,                                        
              show.clust.cent = FALSE, ggtheme = theme_minimal())
@@ -170,7 +226,7 @@ fviz_cluster(list(data = p3_train_predit, cluster = km3$cluster),ellipse.type = 
 
 ```
 
-
+#### 3.3.2 Numero de cluster 5
 
 Se realizara la prueba tambien con 5 para ver los resultado de cada grafico
 
@@ -186,6 +242,9 @@ fviz_cluster(list(data = p3_train_predit, cluster = km2$cluster),ellipse.type = 
              repel = TRUE,                                        # Avoid label overplotting (slow)
              show.clust.cent = FALSE, ggtheme = theme_minimal())
 ```
+
+#### 3.3.3 Numero de cluster 4
+
 Se realizara la prueba tambien con 4 para ver los resultado de cada grafico
 
 ```{r}
@@ -200,14 +259,9 @@ fviz_cluster(list(data = p3_train_predit, cluster = km2$cluster),ellipse.type = 
              show.clust.cent = FALSE, ggtheme = theme_minimal())
 ```
 
-
-############################################################
-# K-mediods
-############################################################
-
+#### 3.4  K-mediods
+Se realiza el kmediods para visualizar para tener otro punto de referencia con un numero de 6 cluster
 ```{r}
-
-
 kmediods3 <- pam(p3_train_predit,6)
 fviz_cluster(list(data = p3_train_predit, cluster = kmediods3$cluster),ellipse.type = "convex",
              repel = TRUE,                                        # Avoid label overplotting (slow)
@@ -216,8 +270,9 @@ randIndex(table(km3$cluster,kmediods3$cluster))                   # rand = 1 -->
 
 ```
 
+#### 3.5  Dendrograma
 
-```{r}
+```{r warning=FALSE}
 data(p3_train_predit)
 datos <- scale(p3_train_predit)
 
@@ -231,6 +286,9 @@ cor(x = mat_dist, cophenetic(hc_euclidea_complete))
 ```{r}
 cor(x = mat_dist, cophenetic(hc_euclidea_average))
 ```
+Para estos datos, se consigue representar ligeramente mejor la similitud entre observaciones. 
+
+Visualizacion del dendograma con un cluster de 6
 ```{r}
 library(factoextra)
 datos <- p3_train_predit
@@ -240,9 +298,211 @@ set.seed(101)
 hc_euclidea_completo <- hclust(d = dist(x = datos, method = "euclidean"),
                                method = "complete")
 
-fviz_dend(x = hc_euclidea_completo, k = 2, cex = 0.6) +
+fviz_dend(x = hc_euclidea_completo, k = 6, cex = 0.6) +
   geom_hline(yintercept = 5.5, linetype = "dashed") +
   labs(title = "Herarchical clustering",
-       subtitle = "Distancia euclídea, Lincage complete, K=2")
+       subtitle = "Distancia euclídea, Lincage complete, K=6")
+```
+Se subdivide en cada grupe epro debido a la extensa informacion no se logra apreciar cada categoria pero objetivamente se visualiza los grupos
+
+#### 3.6  Model based clustering
+
+```{r message=FALSE, warning=FALSE}
+
+datos <- scale(p3_train_predit)
+
+# Model-based-clustering
+model_clustering <- Mclust(data = datos, G = 1:10)
+
+summary(model_clustering)
+
 ```
 
+
+El algoritmo de ajuste selecciona como mejor modelo el formado por 4 clusters, cada uno con forma elipsoidal y con volume, shape y orientation propias.
+
+El clustering basado en modelos es de tipo fuzzy, es decir, para cada observación se calcula un grado de pertenencia a cada cluster y se asigna finalmente al que mayor valor tiene.
+
+
+```{r}
+head(model_clustering$z)
+```
+
+```{r}
+# Clasificación final
+head(model_clustering$classification)
+```
+
+```{r}
+library(factoextra)
+# Curvas del valor BIC en función del número de clusters para cada modelo.
+# Atención al orden en el que se muestra la variable horizontal, por defecto es
+# alfabético.
+fviz_mclust(object = model_clustering, what = "BIC", pallete = "jco") +
+  scale_x_discrete(limits = c(1:10))
+```
+Se visualiza el modelo de seleccion basado en el numero de clustering recomendado
+
+
+
+```{r}
+# Clusters
+fviz_mclust(model_clustering, what = "classification", geom = "point",
+            pallete = "jco")
+```
+
+
+```{r}
+# Certeza de las clasificaciones. Cuanto mayor el tamaño del punto menor la
+# seguridad de la asignación
+fviz_mclust(model_clustering, what = "uncertainty", pallete = "jco")
+```
+
+##  Clustering supervisado 
+
+
+#### 4.1 Normalización y preparación de los datos
+
+Hacemos un escalado sobre los datos para normalizar. 
+
+```{r}
+p3_training <- p3_train %>% mutate(across(where(is.numeric), scale))
+```
+
+Separamos el dataset para train y test, para poder hacer validaciones sobre el modelo.
+
+```{r}
+p <- 0.8
+n <- nrow(p3_training)
+set.seed(12345)
+train.sel <- sample(c(FALSE, TRUE), n, rep = TRUE, prob=(c(1-p,p)))
+train <- p3_training[train.sel,]
+test <- p3_training[!train.sel,]
+
+train
+```
+
+#### 4.2 SVM
+
+Debemos cambiar la variable target a un numero
+```{r}
+trainfact <- train %>% mutate_if(is.factor, as.numeric) %>% mutate(y = as.factor(y))
+testfact <- test %>% mutate_if(is.factor, as.numeric) %>% mutate(y = as.factor(y))
+```
+
+```{r warning=FALSE}
+mod_svm = svm(y ~ ., data = trainfact, kernel = "linear", cost = 10, scale = FALSE)
+print(mod_svm)
+```
+```{r}
+y_pred = predict(mod_svm, newdata = select(testfact,-y))
+
+```
+Rendimiento sobre el test:
+```{r}
+# Confusion Matrix
+cm <- table(testfact$y, y_pred)
+cm
+
+# Accuracy
+misClassError <- mean(y_pred != testfact$y)
+print(paste('Accuracy =', 1-misClassError))
+
+```
+Con el modelo del SVM obtenemos un accuracy de 0.34 sobre el test. Podemos apreciar que esta muy desviado hacia la classe 4, es decir, el modelo tiene mucho overfitting y no es capaz de predecir correctamente datos que no ha visto con anterioridad.
+
+#### 4.3 Random forest
+
+```{r}
+set.seed(1234) #definimos una random seed para obtener los mismos resultados consistentemente
+```
+
+Definimos el modelo. Durante la realización de la práctica se ha hecho un grid search y se definen los parametros que devuelven mejor resultado.
+
+```{r warning=FALSE}
+rf <- randomForest(y~., data = train, mtry = 10, importance = TRUE, ntree = 50 )
+rf
+```
+Por la confusion matrix podemos apreciar que nuestra classificación es correcta y no tenemos casos fuertes de overfitting ya que las predicciones estan distribuidas de manera equitativa entre las diferentes clases en los datos de entrenamiento, lo que da a entender que el modelo generaliza.
+
+Visualizamos que predictores son más importantes.
+
+
+```{r}
+importance(rf)
+varImpPlot(rf)
+```
+Podemos apreciar cómo la variable 'hour' es con diferencia la que mejor ayuda a predecir el numero de bicicletas alquiladas.
+
+
+Analisis del model performance (mse) sobre el conjunto de train
+
+```{r}
+DF <- data.frame(pred = rf$predicted, gt = rf$y)
+DF
+```
+Podemos ver las diferencias entre el count predecido y el ground truth.
+
+
+Validamos modelo sobre el test
+
+```{r}
+y_pred = predict(rf, newdata = select(test,-y))
+
+```
+Rendimiento sobre el test:
+```{r}
+# Confusiin Matrix
+cm <- table(test$y, y_pred)
+cm
+
+# Accuracy
+misClassError <- mean(y_pred != test$y)
+print(paste('Accuracy =', 1-misClassError))
+
+```
+Obtenemos un muy buen rendimiento de accuracy del 90% con el dataset de test.
+
+#### 4.4 ROC Random Forest
+
+A continuación se realiza una ROC de la performance del modelo sobre el test que ha obtenido mejores resultados sobre el train y el test, el algoritmo Random Forest.
+
+```{r}
+roc.curve <- roc(y_pred,test$y)    # Calculo de la curva ROC
+plot(roc.curve)                # Dibujo de la curva ROC
+AUC::auc(roc.curve) 
+```
+#### 5. Prediccion dataset de test
+Para poder hacer la prediccion sobre el dataset de test se tomara el modelo de clasificación con mejor performance y se hara un predict con el modelo ya entrenado y validado. 
+Hay que tener en cuenta que tendremos que hacer las mismas transformaciones en el dataset de test que las hechas al dataset de train, y hay que usar el mismo modelo de transformación onehot encoding para que las variables se separen uniformemente en los dos datasets (el usado para el entrenamiento y el que se va a usar a continuación).
+
+#### 5.1 Normalización y preparación de los datos test
+
+Hacemos un escalado sobre los datos para normalizar. 
+
+```{r}
+p3_test_predit <- p3_test %>% mutate(across(where(is.numeric), scale))
+```
+Se puede apreciar cómo el dataset de  test sigue la misma estructura y codificación que el dataset de training.
+
+#### 5.2 Predicción test
+```{r}
+
+predFinal <- predict(rf, newdata = p3_test_predit)
+
+finalDF <- data.frame(y = predFinal) #se obtiene el id del dataset original
+finalDF
+```
+
+Exportar a un fichero p3.txt de texto con la probabilidad predicha con la columna id y su probabilidad 
+```{r}
+write.table(x = finalDF, file = "p3.txt", sep = ",", 
+            row.names = FALSE, col.names = TRUE)
+```
+
+
+## 3. Conclusiones
+
+El algoritmo de random forest es el que mejor predice el tipo de movimiento que se le realiza en funcion de los parametros recibidos en el data set, con un accurancy del 90% sobre los de test. Podemos ver analizando los resultados que el modelo no tiene mucho overfitting y generaliza bien. 
+
+Cómo algoritmos de clasificacion se podrian intentar también el xgboost o el catboost pero perderiamos entendimiento de lo que esta haciendo el modelo, asi que se ha obviado para este trabajo.
